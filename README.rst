@@ -32,6 +32,12 @@ Configure the exension through `settings.py`::
     ADDONS_AWS_USERNAME = "username"
     ADDONS_S3_BUCKET = "test-bucket-name"
 
+To override extension settings on Scrapy Cloud::
+
+    DOT_SCRAPY_PERSISTENCE_AWS_ACCESS_KEY_ID = "FOO"
+    DOT_SCRAPY_PERSISTENCE_AWS_SECRET_ACCESS_KEY = "BAR"
+    DOT_SCRAPY_PERSISTENCE_S3_PATH = "s3://test-bucket-name/dot-scrapy/%(name)s/" # To insert spider's name.
+
 You can change a dotpersistence folder path with environ::
 
     export DOTSCRAPY_DIR='/tmp/.scrapy'

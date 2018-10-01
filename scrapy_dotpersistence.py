@@ -21,10 +21,10 @@ class DotScrapyPersistence(object):
         return cls(crawler, bucket)
 
     def __init__(self, crawler, bucket):
-        self.AWS_ACCESS_KEY_ID = crawler.settings.get(
-            'ADDONS_AWS_ACCESS_KEY_ID')
-        self.AWS_SECRET_ACCESS_KEY = crawler.settings.get(
-            'ADDONS_AWS_SECRET_ACCESS_KEY')
+        self.AWS_ACCESS_KEY_ID = (crawler.settings.get('DOT_SCRAPY_PERSISTENCE_AWS_ACCESS_KEY_ID')
+            or crawler.settings.get('ADDONS_AWS_ACCESS_KEY_ID'))
+        self.AWS_SECRET_ACCESS_KEY = (crawler.settings.get('DOT_SCRAPY_PERSISTENCE_AWS_SECRET_ACCESS_KEY')
+            or crawler.settings.get('ADDONS_AWS_SECRET_ACCESS_KEY'))
         self._bucket = bucket
         self._bucket_folder = crawler.settings.get('ADDONS_AWS_USERNAME', '')
         self._projectid = os.environ['SCRAPY_PROJECT_ID']
@@ -37,10 +37,7 @@ class DotScrapyPersistence(object):
             'AWS_ACCESS_KEY_ID': self.AWS_ACCESS_KEY_ID,
             'AWS_SECRET_ACCESS_KEY': self.AWS_SECRET_ACCESS_KEY
         }
-        self._load_data()
-        crawler.signals.connect(self._store_data, signals.engine_stopped)
 
-    def _load_data(self):
         if self._bucket_folder:
             self._s3path = 's3://{0}/{1}/{2}/dot-scrapy/{3}/'.format(
                 self._bucket, self._bucket_folder, self._projectid,
@@ -50,6 +47,17 @@ class DotScrapyPersistence(object):
             self._s3path = 's3://{0}/{1}/dot-scrapy/{2}/'.format(
                 self._bucket, self._projectid, self._spider
             )
+
+        self._s3path = crawler.settings.get('DOT_SCRAPY_PERSISTENCE_S3_PATH') or self._s3path
+
+        crawler.signals.connect(self._open_spider, signals.spider_opened)
+        crawler.signals.connect(self._store_data, signals.engine_stopped)
+
+    def _open_spider(self, spider):
+        self._s3path = self._s3path % {'name': spider.name}
+        self._load_data()
+
+    def _load_data(self):
         logger.info('Syncing .scrapy directory from %s' % self._s3path)
         cmd = ['aws', 's3', 'sync', self._s3path, self._localpath]
         self._call(cmd)

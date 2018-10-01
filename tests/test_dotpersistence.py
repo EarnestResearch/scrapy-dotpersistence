@@ -60,30 +60,56 @@ class DotScrapyPersisitenceTestCase(TestCase):
             'AWS_ACCESS_KEY_ID': 'access-key',
             'AWS_SECRET_ACCESS_KEY': 'secret-key',
         }
-        # short checks that init called _load_data
-        self.assertEqual(
-            self.instance._s3path,
-            's3://test-bucket/test-user/123/dot-scrapy/testspider/')
-        assert self.mocked_popen.called
+        assert self.instance._s3path == 's3://test-bucket/test-user/123/dot-scrapy/testspider/'
+
+    def test_init_no_aws_username(self):
+        crawler_mock = mock.Mock()
+        crawler_mock.settings = Settings({
+            'DOTSCRAPY_ENABLED': True,
+            'ADDONS_S3_BUCKET': 'test-bucket',
+            'ADDONS_AWS_ACCESS_KEY_ID': 'access-key',
+            'ADDONS_AWS_SECRET_ACCESS_KEY': 'secret-key',
+        })
+        instance = DotScrapyPersistence.from_crawler(crawler_mock)
+        assert instance._s3path == 's3://test-bucket/123/dot-scrapy/testspider/'
+
+    def test_init_custom_aws_credentials_and_s3_bucket_path(self):
+        crawler_mock = mock.Mock()
+        crawler_mock.settings = Settings({
+            'DOTSCRAPY_ENABLED': True,
+            'ADDONS_S3_BUCKET': 'test-bucket',
+            'ADDONS_AWS_ACCESS_KEY_ID': 'access-key',
+            'ADDONS_AWS_SECRET_ACCESS_KEY': 'secret-key',
+            'ADDONS_AWS_USERNAME': 'test-user',
+            'DOT_SCRAPY_PERSISTENCE_AWS_ACCESS_KEY_ID': 'foo-access-key',
+            'DOT_SCRAPY_PERSISTENCE_AWS_SECRET_ACCESS_KEY': 'foo-secret-key',
+            'DOT_SCRAPY_PERSISTENCE_S3_PATH': 's3://foo-bucket/foo/foo-spider/'
+        })
+        instance = DotScrapyPersistence.from_crawler(crawler_mock)
+
+        assert instance.AWS_ACCESS_KEY_ID == 'foo-access-key'
+        assert instance.AWS_SECRET_ACCESS_KEY == 'foo-secret-key'
+        assert instance._s3path == 's3://foo-bucket/foo/foo-spider/'
 
     def test_load_data(self):
         mocked_call = mock.Mock()
         self.instance._call = mocked_call
 
         self.instance._load_data()
-        s3_path1 = 's3://test-bucket/test-user/123/dot-scrapy/testspider/'
-        self.assertEqual(self.instance._s3path, s3_path1)
         mocked_call.assert_called_with(
-            ['aws', 's3', 'sync', s3_path1, '/tmp/.scrapy'])
+            ['aws', 's3', 'sync',
+             's3://test-bucket/test-user/123/dot-scrapy/testspider/', '/tmp/.scrapy'])
 
-        # test other s3_path w/o bucket_folder
-        mocked_call.reset()
-        self.instance._bucket_folder = None
-        self.instance._load_data()
-        s3_path2 = 's3://test-bucket/123/dot-scrapy/testspider/'
-        self.assertEqual(self.instance._s3path, s3_path2)
-        mocked_call.assert_called_with(
-            ['aws', 's3', 'sync', s3_path2, '/tmp/.scrapy'])
+    def test_open_spider(self):
+        mocked_load_data = mock.Mock()
+        self.instance._load_data = mocked_load_data
+        mocked_spider = mock.Mock()
+        mocked_spider.name = 'foo'
+        self.instance._s3path = 's3://test-bucket/%(name)s/testspider/'
+        self.instance._open_spider(mocked_spider)
+
+        assert self.instance._s3path == 's3://test-bucket/foo/testspider/'
+        mocked_load_data.assert_called_with()
 
     def test_store_data(self):
         mocked_call = mock.Mock()
